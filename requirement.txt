@@ -1,0 +1,4 @@
+numpy==1.16.4
+gym
+stable-baselines[MPI]
+tensorflow==1.15.0
