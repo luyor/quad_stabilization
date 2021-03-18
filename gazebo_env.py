@@ -11,6 +11,7 @@ import random
 from rosgraph_msgs.msg import Clock
 import time
 
+
 class GazeboEnv(gym.Env):
     """Superclass for all Gazebo environments.
     """
@@ -20,8 +21,9 @@ class GazeboEnv(gym.Env):
         # self.last_clock_msg = Clock()
 
         random_number = random.randint(10000, 15000)
-        self.port = "11411"        #str(random_number) #os.environ["ROS_PORT_SIM"]
-        self.port_gazebo = "11445" #str(random_number+1) #os.environ["ROS_PORT_SIM"]
+        self.port = "11411"  # str(random_number) #os.environ["ROS_PORT_SIM"]
+        # str(random_number+1) #os.environ["ROS_PORT_SIM"]
+        self.port_gazebo = "11445"
         # self.port = str(random_number) #os.environ["ROS_PORT_SIM"]
         # self.port_gazebo = str(random_number+1) #os.environ["ROS_PORT_SIM"]
 
@@ -34,7 +36,8 @@ class GazeboEnv(gym.Env):
         print("GAZEBO_MASTER_URI=http://localhost:"+self.port_gazebo + "\n")
 
         # self.port = os.environ.get("ROS_PORT_SIM", "11311")
-        # ros_path = os.path.dirname(subprocess.check_output(["which", "roscore"]))
+        ros_path = os.path.dirname(
+            subprocess.check_output(["which", "roscore"]))
 
         # NOTE: It doesn't make sense to launch a roscore because it will be done when spawing Gazebo, which also need
         #   to be the first node in order to initialize the clock.
@@ -43,23 +46,23 @@ class GazeboEnv(gym.Env):
         # time.sleep(1)
         # print ("Roscore launched!")
 
-
         if launchfile.startswith("/"):
             fullpath = launchfile
         else:
-            fullpath = os.path.join(os.path.dirname(__file__), "launchs", launchfile)
+            fullpath = os.path.join(os.path.dirname(
+                __file__), "launchs", launchfile)
         if not os.path.exists(fullpath):
             raise IOError("File "+fullpath+" does not exist")
 
-        # self._roslaunch = subprocess.Popen([sys.executable, os.path.join(ros_path, b"roslaunch"), "-p", self.port, fullpath])
-        print ("Gazebo launched!")
+        self._roslaunch = subprocess.Popen([sys.executable, os.path.join(
+            ros_path, b"roslaunch"), "-p", self.port, fullpath])
+        print("Gazebo launched!")
 
         # time.sleep(10)
         self.gzclient_pid = 0
 
         # Launch the simulation with the given launchfile name
         rospy.init_node('gym', anonymous=True)
-
 
         ################################################################################################################
         # r = rospy.Rate(1)
@@ -115,7 +118,8 @@ class GazeboEnv(gym.Env):
         proccount = tmp.count('gzclient')
         if proccount < 1:
             subprocess.Popen("gzclient")
-            self.gzclient_pid = int(subprocess.check_output(["pidof","-s","gzclient"]))
+            self.gzclient_pid = int(
+                subprocess.check_output(["pidof", "-s", "gzclient"]))
         else:
             self.gzclient_pid = 0
 
@@ -137,7 +141,7 @@ class GazeboEnv(gym.Env):
         if roscore_count > 0:
             os.system("killall -9 roscore")
 
-        if (gzclient_count or gzserver_count or roscore_count or rosmaster_count >0):
+        if (gzclient_count or gzserver_count or roscore_count or rosmaster_count > 0):
             os.wait()
 
     def _configure(self):
@@ -146,6 +150,7 @@ class GazeboEnv(gym.Env):
         # From OpenAI API: Provides runtime configuration to the enviroment
         # Maybe set the Real Time Factor?
         pass
+
     def _seed(self):
 
         # TODO
