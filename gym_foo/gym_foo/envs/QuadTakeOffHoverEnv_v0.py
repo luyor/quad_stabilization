@@ -22,13 +22,14 @@ from gazebo_msgs.srv import SetModelState, GetModelState
 
 
 # ttr Engine for the use of TTR reward
-from ttr_engine.ttr_helper import ttr_helper
+# from ttr_engine.ttr_helper import ttr_helper
 
 
 class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
     def __init__(self, rew, **kwargs):
         # Launch the simulation with the given launchfile name
-        gazebo_env.GazeboEnv.__init__(self, "crazyflie2_without_controller.launch")
+        gazebo_env.GazeboEnv.__init__(
+            self, "crazyflie2_without_controller.launch")
 
         # --- Max episode steps ---
         self.max_steps = 300
@@ -36,13 +37,12 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
         # --- Take off and Hover identifier --
         self.isTakeoff = True
-        self.isHover   = False
+        self.isHover = False
 
         # --- Specification of TTR reward ---
-        if rew == 'ttr':
-            self.ttr_helper = ttr_helper()
-            self.ttr_helper.setup()
-
+        # if rew == 'ttr':
+        #     self.ttr_helper = ttr_helper()
+        #     self.ttr_helper.setup()
 
         # --- Specification of maximum motor speed, from crazyflie manual ---
         self.max_motor_speed = 2618
@@ -56,12 +56,13 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
         self.pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
         self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_world', Empty)
-        self.set_model_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
-        self.get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+        self.set_model_state = rospy.ServiceProxy(
+            '/gazebo/set_model_state', SetModelState)
+        self.get_model_state = rospy.ServiceProxy(
+            '/gazebo/get_model_state', GetModelState)
 
-        self.enable_motor = rospy.Publisher('/crazyflie2/command/motor_speed', Actuators, queue_size=1)
-
-
+        self.enable_motor = rospy.Publisher(
+            '/crazyflie2/command/motor_speed', Actuators, queue_size=1)
 
     def reset(self, reset_args=None):
         rospy.wait_for_service('/gazebo/reset_simulation')
@@ -69,15 +70,24 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
             self.reset_proxy()
             # initialize pose position
             pose = Pose()
-            pose.position.x, pose.position.y, pose.position.z = 0, 0, 0.015
+            pose.position.x = 0
+            pose.position.y = 0
+            pose.position.z = np.random.uniform(0.9, 1.1)
 
             # initialize pose orientation
             # Note: gazebo rotation order: roll, pitch, yaw
             # the angle w.r.t x-axis: roll in gazebo, [-np.pi/2, np.pi/2]
             # the angle w.r.t y-axis: pitch in gazebo, [-np.pi/2, np.pi/2]
             # the angle w.r.t z-axis: yaw in gazebo, [0, 2*np.pi]
-            roll, pitch, yaw = 0, 0, np.random.uniform(0, 2*np.pi)
-            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = quaternion_from_euler(roll, pitch, yaw)
+
+            # roll = np.random.uniform(-np.pi/2, np.pi/2)
+            # pitch = np.random.uniform(-np.pi/2, np.pi/2)
+            # yaw = np.random.uniform(0, 2*np.pi)
+            roll = np.random.uniform(-np.pi/4, np.pi/4)
+            pitch = np.random.uniform(-np.pi/4, np.pi/4)
+            yaw = np.random.uniform(np.pi/4, 3*np.pi/4)
+            pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = quaternion_from_euler(
+                roll, pitch, yaw)
 
             # initialize twist
             # the reset value should be referring to some empirical value
@@ -102,12 +112,14 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
         # read observation
         Pose_data = None
-        Imu_data  = None
+        Imu_data = None
         Odom_data = None
         while Pose_data is None or Imu_data is None or Odom_data is None:
-            Pose_data = rospy.wait_for_message("/crazyflie2/pose_with_covariance", PoseWithCovarianceStamped, timeout=5)
+            Pose_data = rospy.wait_for_message(
+                "/crazyflie2/pose_with_covariance", PoseWithCovarianceStamped, timeout=5)
             time.sleep(0.01)
-            Imu_data  = rospy.wait_for_message('/crazyflie2/ground_truth/imu', Imu, timeout=5)
+            Imu_data = rospy.wait_for_message(
+                '/crazyflie2/ground_truth/imu', Imu, timeout=5)
             time.sleep(0.01)
             # Odom_data = rospy.wait_for_message('/crazyflie2/ground_truth/odometry', Odometry, timeout=5)
             Odom_data = self.get_model_state(model_name="crazyflie2")
@@ -147,9 +159,9 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         vy = Odom_data.twist.linear.y
         vz = Odom_data.twist.linear.z
 
-
         # roll, pitch, yaw
-        roll, pitch, yaw = euler_from_quaternion([Imu_data.orientation.x, Imu_data.orientation.y, Imu_data.orientation.z, Imu_data.orientation.w])
+        roll, pitch, yaw = euler_from_quaternion(
+            [Imu_data.orientation.x, Imu_data.orientation.y, Imu_data.orientation.z, Imu_data.orientation.w])
 
         # angular velocities of roll, pitch, yaw
         roll_w, pitch_w, yaw_w = Imu_data.angular_velocity.x, Imu_data.angular_velocity.y, Imu_data.angular_velocity.z
@@ -157,6 +169,16 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         # print(np.array([z, vx, vy, vz, roll, pitch, yaw, roll_w, pitch_w, yaw_w]))
 
         return np.array([z, vx, vy, vz, roll, pitch, yaw, roll_w, pitch_w, yaw_w])
+
+    def compute_reward(self, state):
+        target = np.array([self.target_height, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        diff = state - target
+        cost = 0
+        cost += diff[0]
+        cost += np.linalg.norm(diff[1:4], 2)
+        cost += np.linalg.norm(diff[4:7], 2)
+        cost += np.linalg.norm(diff[7:10], 2)
+        return -cost
 
     def step(self, action):
         # action is 4-dims representing drone's four motor speeds
@@ -169,8 +191,10 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         # --- transform action from network output into environment limit, use ref=[-2,2] or [-1,1]---
         ref_action = spaces.Box(low=-1, high=1, shape=(4,))
         action = np.clip(action, ref_action.low, ref_action.high)
-        env_action = self.action_space.low + (self.action_space.high - self.action_space.low) * (action - ref_action.low) * 1.0 / (ref_action.high - ref_action.low)
-        clipped_env_ac = np.clip(env_action.copy(), self.action_space.low, self.action_space.high)
+        env_action = self.action_space.low + (self.action_space.high - self.action_space.low) * (
+            action - ref_action.low) * 1.0 / (ref_action.high - ref_action.low)
+        clipped_env_ac = np.clip(
+            env_action.copy(), self.action_space.low, self.action_space.high)
         # print("real action:", clipped_env_ac)
 
         # --- apply motor speed to crazyflie ---
@@ -190,9 +214,11 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         Imu_data = None
         Odom_data = None
         while Pose_data is None or Imu_data is None or Odom_data is None:
-            Pose_data = rospy.wait_for_message("/crazyflie2/pose_with_covariance", PoseWithCovarianceStamped)
+            Pose_data = rospy.wait_for_message(
+                "/crazyflie2/pose_with_covariance", PoseWithCovarianceStamped)
             time.sleep(0.01)
-            Imu_data = rospy.wait_for_message('/crazyflie2/ground_truth/imu', Imu)
+            Imu_data = rospy.wait_for_message(
+                '/crazyflie2/ground_truth/imu', Imu)
             time.sleep(0.01)
             # Odom_data = rospy.wait_for_message('/crazyflie2/ground_truth/odometry', Odometry)
             Odom_data = self.get_model_state(model_name='crazyflie2')
@@ -211,32 +237,34 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
         reward = 0
         done = False
-        suc  = False
+        suc = False
         self.step_counter += 1
 
         # --- determine reward-to-go for possible situations, using TTR for takeoff only
-        if self.isTakeoff:
-            reward += -10.0 * self.ttr_helper.interp(obsrv) - 2.0 * np.abs(self.target_takeoff_vel[2] - obsrv[3])
-            if self.step_counter > 30:
-                reward += -200
-                logger.log("Failed to take off!")
-                done = True
-            elif obsrv[0] >= self.target_height:
-                reward += 400
-                logger.log("good to take off and ready to hover!")
-                self.isTakeoff = False
-                self.isHover = True
-        elif self.isHover:
-            reward = -10.0 * self.ttr_helper.interp(obsrv)
-            if self.pre_obsrv[0] < 0.2:
-                logger.log('clash in area too low, failed')
-                reward -= 200.0  # penalty clash
-                done = True
-            elif self.step_counter > 50:
-                reward += 400
-                suc = True
-                logger.log("good to hover for a while !!")
+        # if self.isTakeoff:
+        #     # reward += -10.0 * self.ttr_helper.interp(obsrv) - 2.0 * np.abs(self.target_takeoff_vel[2] - obsrv[3])
+        #     reward = 1
+        #     if self.step_counter > 30:
+        #         reward += -200
+        #         logger.log("Failed to take off!")
+        #         done = True
+        #     elif obsrv[0] >= self.target_height:
+        #         reward += 400
+        #         logger.log("good to take off and ready to hover!")
+        #         self.isTakeoff = False
+        #         self.isHover = True
+        # elif self.isHover:
 
+        # reward = -10.0 * self.ttr_helper.interp(obsrv)
+        reward = self.compute_reward(obsrv)
+        if self.pre_obsrv[0] < 0.2:
+            logger.log('clash in area too low, failed')
+            reward -= 200.0  # penalty clash
+            done = True
+        elif self.step_counter > 50:
+            # reward += 400
+            # suc = True
+            logger.log("good to hover for a while !!")
 
         # --- determine reward-to-go for possible situations (oldest version)
         # if self.isTakeoff:
@@ -268,10 +296,10 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         if self.step_counter >= self.max_steps:
             done = True
 
-        return np.array(np.copy(obsrv)), reward, done, {'suc':suc}
+        return np.array(np.copy(obsrv)), reward, done, {'suc': suc}
 
     def in_collision(self, obsrv):
-        if self.x >=2 or self.x <= -2 or self.y >= 2 or self.y <= -2:
+        if self.x >= 2 or self.x <= -2 or self.y >= 2 or self.y <= -2 or obsrv[0] <= 0.5 or obsrv[0] >= 1.5:
             print("in collision, x and y out of range!")
             return True
         elif obsrv[4] >= np.pi/2:
