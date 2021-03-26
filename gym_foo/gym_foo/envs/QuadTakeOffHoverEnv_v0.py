@@ -6,7 +6,7 @@ import gym
 from gym import spaces
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import gazebo_env
-from baselines import logger
+from stable_baselines import logger
 
 # Required ROS msgs
 from gazebo_msgs.msg import ModelState
@@ -26,31 +26,25 @@ from gazebo_msgs.srv import SetModelState, GetModelState
 
 
 class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
-    def __init__(self, rew, **kwargs):
+    def __init__(self, **kwargs):
         # Launch the simulation with the given launchfile name
         gazebo_env.GazeboEnv.__init__(
             self, "crazyflie2_without_controller.launch")
 
         # --- Max episode steps ---
-        self.max_steps = 300
+        self.max_steps = 50
         self.step_counter = 0
 
         # --- Take off and Hover identifier --
         self.isTakeoff = True
         self.isHover = False
 
-        # --- Specification of TTR reward ---
-        # if rew == 'ttr':
-        #     self.ttr_helper = ttr_helper()
-        #     self.ttr_helper.setup()
-
+        self.min_motor_speed = 0
         # --- Specification of maximum motor speed, from crazyflie manual ---
         self.max_motor_speed = 2618
 
         # --- Specification of target ---
-        self.target_height = 0.5
-        self.target_takeoff_vel = np.array([0, 0, 1])
-        self.target_hover_vel = np.array([0, 0, 0])
+        self.target_height = 1
 
         # rospy.init_node("QuadTakeOffHover", anonymous=True, log_level=rospy.INFO)
         self.unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
@@ -85,7 +79,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
             # yaw = np.random.uniform(0, 2*np.pi)
             roll = np.random.uniform(-np.pi/4, np.pi/4)
             pitch = np.random.uniform(-np.pi/4, np.pi/4)
-            yaw = np.random.uniform(np.pi/4, 3*np.pi/4)
+            yaw = np.random.uniform(-np.pi/2, np.pi/2)
             pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = quaternion_from_euler(
                 roll, pitch, yaw)
 
@@ -146,7 +140,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         # we don't include any state variables w.r.t 2D positions (x,y)
         # valid state variables: [z, vx, vy, vz, roll, pitch, yaw, roll_w, pitch_w, yaw_w]
 
-        # Hight to ground
+        # Height to ground
         self.x = Pose_data.pose.pose.position.x
         self.y = Pose_data.pose.pose.position.y
         z = Pose_data.pose.pose.position.z
@@ -170,17 +164,19 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
         return np.array([z, vx, vy, vz, roll, pitch, yaw, roll_w, pitch_w, yaw_w])
 
-    def compute_reward(self, state):
+    def compute_reward(self, state, prev_position):
         target = np.array([self.target_height, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         diff = state - target
+        pos_diff = np.array([self.x, self.y, state[0]]) - prev_position
         cost = 0
-        cost += diff[0]
-        cost += np.linalg.norm(diff[1:4], 2)
-        cost += np.linalg.norm(diff[4:7], 2)
-        cost += np.linalg.norm(diff[7:10], 2)
-        return -cost
+        cost += np.linalg.norm(pos_diff) * 5
+        cost += np.linalg.norm(diff[1:4], 2) * 0.05  # twist linear
+        cost += np.linalg.norm(diff[4:7], 2) * 0.5  # roll, pitch, yaw
+        cost += np.linalg.norm(diff[7:10], 2) * 0.1   # angular velocities
+        return 10-cost
 
     def step(self, action):
+        prev_position = np.array([self.x, self.y, self.pre_obsrv[0]])
         # action is 4-dims representing drone's four motor speeds
         action = np.asarray(action)
 
@@ -188,13 +184,13 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         if sum(np.isnan(action)) > 0:
             raise ValueError("Passed in nan to step! Action: " + str(action))
 
-        # --- transform action from network output into environment limit, use ref=[-2,2] or [-1,1]---
-        ref_action = spaces.Box(low=-1, high=1, shape=(4,))
-        action = np.clip(action, ref_action.low, ref_action.high)
-        env_action = self.action_space.low + (self.action_space.high - self.action_space.low) * (
-            action - ref_action.low) * 1.0 / (ref_action.high - ref_action.low)
+        # --- transform action from network output into environment limit, i.e. [-1,1] to [self.min_motor_speed, self.max_motor_speed]---
+        real_action = spaces.Box(
+            low=self.min_motor_speed, high=self.max_motor_speed, shape=(4,))
+        env_action = self.min_motor_speed + 0.5 * \
+            (action+1)*(self.max_motor_speed-self.min_motor_speed)
         clipped_env_ac = np.clip(
-            env_action.copy(), self.action_space.low, self.action_space.high)
+            env_action.copy(), self.min_motor_speed, self.max_motor_speed)
         # print("real action:", clipped_env_ac)
 
         # --- apply motor speed to crazyflie ---
@@ -240,57 +236,9 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         suc = False
         self.step_counter += 1
 
-        # --- determine reward-to-go for possible situations, using TTR for takeoff only
-        # if self.isTakeoff:
-        #     # reward += -10.0 * self.ttr_helper.interp(obsrv) - 2.0 * np.abs(self.target_takeoff_vel[2] - obsrv[3])
-        #     reward = 1
-        #     if self.step_counter > 30:
-        #         reward += -200
-        #         logger.log("Failed to take off!")
-        #         done = True
-        #     elif obsrv[0] >= self.target_height:
-        #         reward += 400
-        #         logger.log("good to take off and ready to hover!")
-        #         self.isTakeoff = False
-        #         self.isHover = True
-        # elif self.isHover:
-
-        # reward = -10.0 * self.ttr_helper.interp(obsrv)
-        reward = self.compute_reward(obsrv)
-        if self.pre_obsrv[0] < 0.2:
-            logger.log('clash in area too low, failed')
-            reward -= 200.0  # penalty clash
-            done = True
-        elif self.step_counter > 50:
-            # reward += 400
-            # suc = True
-            logger.log("good to hover for a while !!")
-
-        # --- determine reward-to-go for possible situations (oldest version)
-        # if self.isTakeoff:
-        #     reward = -(1.5 * np.linalg.norm(self.target_height - self.pre_obsrv[0]) + 0.6 * np.linalg.norm(self.target_takeoff_vel-self.pre_obsrv[1:4]))
-        #     if self.step_counter > 20:
-        #         reward += -50
-        #         logger.log("Failed to take off!")
-        #         done = True
-        #     elif self.pre_obsrv[0] >= self.target_height:
-        #         reward += 50
-        #         logger.log("good to take off and ready to hover!")
-        #         self.isTakeoff = False
-        #         self.isHover = True
-        # elif self.isHover:
-        #     reward = -(1.5 * np.linalg.norm(self.target_height - self.pre_obsrv[0]) + 0.8 * np.linalg.norm(self.target_hover_vel - self.pre_obsrv[1:4]))
-        #     if self.pre_obsrv[0] < 0.2:
-        #         logger.log('Clash Last for : {} steps, failed'.format(self.step_counter))
-        #         reward -= 100.0  # penalty clash
-        #         done = True
-        #     elif self.step_counter > 50:
-        #         reward += 100
-        #         suc = True
-        #         logger.log("good to hover for {} steps!!".format(self.step_counter))
+        reward = self.compute_reward(obsrv, prev_position)
 
         if self.in_collision(self.pre_obsrv):
-            reward += -200
             done = True
 
         if self.step_counter >= self.max_steps:
@@ -299,11 +247,10 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         return np.array(np.copy(obsrv)), reward, done, {'suc': suc}
 
     def in_collision(self, obsrv):
-        if self.x >= 2 or self.x <= -2 or self.y >= 2 or self.y <= -2 or obsrv[0] <= 0.5 or obsrv[0] >= 1.5:
-            print("in collision, x and y out of range!")
-            return True
-        elif obsrv[4] >= np.pi/2:
-            print("in collision, roll angle out of range")
+        if self.x >= 2 or self.x <= -2 \
+                or self.y >= 2 or self.y <= -2 \
+                or obsrv[0] <= 0.7 or obsrv[0] >= 1.3:
+            # print("in collision, x and y out of range!")
             return True
         else:
             return False
@@ -315,7 +262,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
     @property
     def action_space(self):
-        return spaces.Box(low=2000, high=self.max_motor_speed, shape=(4,))
+        return spaces.Box(low=-1, high=1, shape=(4,))
 
 
 if __name__ == "__main__":
