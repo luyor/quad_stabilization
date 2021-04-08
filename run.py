@@ -12,7 +12,8 @@ from gym_foo import gym_foo
 
 
 def train(model_name, total_timesteps=100000, load_path=None, eval=False):
-    env = DummyVecEnv([lambda: gym.make('QuadTakeOffHoverEnv-v0')])
+    env = DummyVecEnv(
+        [lambda: gym.make('QuadTakeOffHoverEnv-v0', is_evaluate=eval)])
     eval_callback = EvalCallback(
         env, best_model_save_path='./logs', eval_freq=1000, verbose=1)
 

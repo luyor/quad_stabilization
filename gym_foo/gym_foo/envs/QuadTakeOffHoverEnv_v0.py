@@ -1,4 +1,5 @@
 # Required general libraries
+import pandas
 import numpy as np
 import rospy
 import time
@@ -30,6 +31,8 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         # Launch the simulation with the given launchfile name
         gazebo_env.GazeboEnv.__init__(
             self, "crazyflie2_without_controller.launch")
+
+        self.is_evaluate = kwargs['is_evaluate']
 
         # --- Max episode steps ---
         self.max_steps = 50
@@ -77,8 +80,8 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
             # roll = np.random.uniform(-np.pi/2, np.pi/2)
             # pitch = np.random.uniform(-np.pi/2, np.pi/2)
             # yaw = np.random.uniform(0, 2*np.pi)
-            roll = np.random.uniform(-np.pi/4, np.pi/4)
-            pitch = np.random.uniform(-np.pi/4, np.pi/4)
+            roll = np.random.uniform(-np.pi/2, np.pi/2)
+            pitch = np.random.uniform(-np.pi/2, np.pi/2)
             yaw = np.random.uniform(-np.pi/2, np.pi/2)
             pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = quaternion_from_euler(
                 roll, pitch, yaw)
@@ -86,8 +89,10 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
             # initialize twist
             # the reset value should be referring to some empirical value
             twist = Twist()
-            twist.linear.x, twist.linear.y, twist.linear.z = 0, 0, 0
-            twist.angular.x, twist.angular.y, twist.angular.z = 0, 0, 0
+            twist.linear.x, twist.linear.y, twist.linear.z = np.random.uniform(
+                -1, 1, 3)
+            twist.angular.x, twist.angular.y, twist.angular.z = np.random.uniform(
+                -1, 1, 3)
 
             reset_state = ModelState()
             reset_state.model_name = "crazyflie2"
@@ -111,13 +116,13 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         while Pose_data is None or Imu_data is None or Odom_data is None:
             Pose_data = rospy.wait_for_message(
                 "/crazyflie2/pose_with_covariance", PoseWithCovarianceStamped, timeout=5)
-            time.sleep(0.01)
+            # time.sleep(0.01)
             Imu_data = rospy.wait_for_message(
                 '/crazyflie2/ground_truth/imu', Imu, timeout=5)
-            time.sleep(0.01)
+            # time.sleep(0.01)
             # Odom_data = rospy.wait_for_message('/crazyflie2/ground_truth/odometry', Odometry, timeout=5)
             Odom_data = self.get_model_state(model_name="crazyflie2")
-            time.sleep(0.01)
+            # time.sleep(0.01)
 
         # Pause simulation
         rospy.wait_for_service('/gazebo/pause_physics')
@@ -167,13 +172,20 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
     def compute_reward(self, state, prev_position):
         target = np.array([self.target_height, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         diff = state - target
-        pos_diff = np.array([self.x, self.y, state[0]]) - prev_position
-        cost = 0
-        cost += np.linalg.norm(pos_diff) * 5
-        cost += np.linalg.norm(diff[1:4], 2) * 0.05  # twist linear
-        cost += np.linalg.norm(diff[4:7], 2) * 0.5  # roll, pitch, yaw
-        cost += np.linalg.norm(diff[7:10], 2) * 0.1   # angular velocities
-        return 10-cost
+        pos = np.array([self.x, self.y, state[0]])
+        pos_diff = pos - prev_position
+        pos_cost = np.linalg.norm(pos_diff) * 20
+        twist_cost = np.linalg.norm(diff[1:4], 2) * 0.05
+        angle_cost = np.linalg.norm(diff[4:7], 2) * 0.5
+        angular_vel_cost = np.linalg.norm(diff[7:10], 2) * 0.1
+        costs = [pos_cost, twist_cost, angle_cost, angular_vel_cost]
+
+        # if self.is_evaluate:
+        #     headers = ['position', 'twist', 'angle', 'angular vel']
+        #     print(pandas.DataFrame([costs], ['cost'], headers))
+        #     print('total cost:', sum(costs))
+
+        return 10-sum(costs)
 
     def step(self, action):
         prev_position = np.array([self.x, self.y, self.pre_obsrv[0]])
@@ -212,13 +224,13 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         while Pose_data is None or Imu_data is None or Odom_data is None:
             Pose_data = rospy.wait_for_message(
                 "/crazyflie2/pose_with_covariance", PoseWithCovarianceStamped)
-            time.sleep(0.01)
+            # time.sleep(0.01)
             Imu_data = rospy.wait_for_message(
                 '/crazyflie2/ground_truth/imu', Imu)
-            time.sleep(0.01)
+            # time.sleep(0.01)
             # Odom_data = rospy.wait_for_message('/crazyflie2/ground_truth/odometry', Odometry)
             Odom_data = self.get_model_state(model_name='crazyflie2')
-            time.sleep(0.01)
+            # time.sleep(0.01)
 
         # --- pause simulator to process data ---
         rospy.wait_for_service('/gazebo/pause_physics')
@@ -249,7 +261,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
     def in_collision(self, obsrv):
         if self.x >= 2 or self.x <= -2 \
                 or self.y >= 2 or self.y <= -2 \
-                or obsrv[0] <= 0.7 or obsrv[0] >= 1.3:
+                or obsrv[0] <= 0.5 or obsrv[0] >= 1.5:
             # print("in collision, x and y out of range!")
             return True
         else:
