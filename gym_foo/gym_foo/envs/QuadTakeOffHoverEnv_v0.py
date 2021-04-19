@@ -187,8 +187,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
         return 10-sum(costs)
 
-    def step(self, action):
-        prev_position = np.array([self.x, self.y, self.pre_obsrv[0]])
+    def do_quadrotor_action(self, action):
         # action is 4-dims representing drone's four motor speeds
         action = np.asarray(action)
 
@@ -211,6 +210,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         cmd_msg.angular_velocities = clipped_env_ac
         self.enable_motor.publish(cmd_msg)
 
+    def run_simulation(self):
         # --- run simulator to collect data ---
         rospy.wait_for_service('/gazebo/unpause_physics')
         try:
@@ -239,9 +239,15 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         except rospy.ServiceException as e:
             print("/gazebo/pause_physics service call failed")
 
-        # --- deal with obsrv and reward ---
         obsrv = self.get_obsrv(Pose_data, Imu_data, Odom_data)
         self.pre_obsrv = obsrv
+        return obsrv
+
+    def step(self, action):
+        prev_position = np.array([self.x, self.y, self.pre_obsrv[0]])
+
+        self.do_quadrotor_action(action)
+        obsrv = self.run_simulation()
 
         reward = 0
         done = False
