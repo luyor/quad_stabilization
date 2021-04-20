@@ -32,8 +32,6 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         gazebo_env.GazeboEnv.__init__(
             self, "crazyflie2_without_controller.launch")
 
-        self.is_evaluate = kwargs['is_evaluate']
-
         # --- Max episode steps ---
         self.max_steps = 50
         self.step_counter = 0
@@ -179,12 +177,6 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         angle_cost = np.linalg.norm(diff[4:7], 2) * 0.5
         angular_vel_cost = np.linalg.norm(diff[7:10], 2) * 0.1
         costs = [pos_cost, twist_cost, angle_cost, angular_vel_cost]
-
-        # if self.is_evaluate:
-        #     headers = ['position', 'twist', 'angle', 'angular vel']
-        #     print(pandas.DataFrame([costs], ['cost'], headers))
-        #     print('total cost:', sum(costs))
-
         return sum(costs)
 
     def do_quadrotor_action(self, action):

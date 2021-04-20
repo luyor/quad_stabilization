@@ -55,7 +55,7 @@ class GazeboEnv(gym.Env):
             raise IOError("File "+fullpath+" does not exist")
 
         self._roslaunch = subprocess.Popen([sys.executable, os.path.join(
-            ros_path, b"roslaunch"), "-p", self.port, fullpath])
+            ros_path, b"roslaunch"), "-p", self.port, fullpath], stdout=subprocess.DEVNULL)
         print("Gazebo launched!")
 
         # time.sleep(10)

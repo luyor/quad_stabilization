@@ -10,55 +10,11 @@ from stable_baselines.common.vec_env import DummyVecEnv
 from stable_baselines.common.evaluation import evaluate_policy
 
 from gym_foo import gym_foo
-
-
-class RARLCallback(BaseCallback):
-    def __init__(self, adv_model, total_timesteps, verbose=0):
-        super(RARLCallback, self).__init__(verbose)
-        self.adv_model_step = adv_model.learn(total_timesteps=total_timesteps)
-
-    def on_training_start(self, locals, globals):
-        next(self.adv_model_step)
-
-    def _on_step(self):
-        next(self.adv_model_step)
-
-
-def run_rarl(model_name, adv_model_name, total_timesteps=10000, load_path=None, adv_load_path=None, eval=False, adversarial_bound=0.1):
-    env = gym.make('QuadRARLEnv-v0',
-                   adversarial_bound=adversarial_bound, is_evaluate=eval)
-
-    model_class = {'sac': SAC, 'ppo': PPO2}[model_name]
-    if load_path:
-        model = model_class.load(
-            load_path, env, tensorboard_log='./tensorboard')
-    else:
-        model = model_class('MlpPolicy', env, verbose=1,
-                            tensorboard_log='./tensorboard')
-
-    adv_model_class = {'sac': AdversarialSAC}[model_name]
-    if adv_load_path:
-        adv_model = adv_model_class.load(
-            adv_load_path, env, tensorboard_log='./tensorboard')
-    else:
-        adv_model = adv_model_class('MlpPolicy', env, verbose=1,
-                                    tensorboard_log='./tensorboard')
-
-    if eval:
-        evaluate_policy(model, env)
-    else:
-        eval_callback = EvalCallback(
-            env, best_model_save_path='./logs', eval_freq=1000, verbose=1)
-        rarl_callback = RARLCallback(adv_model, total_timesteps)
-        callbacks = CallbackList([rarl_callback])
-        model.learn(total_timesteps=total_timesteps, callback=callbacks)
-        model.save('quad_model_'+model_name)
-        adv_model.save('adversary_model_'+adv_model_name)
+from run_rarl import run_rarl
 
 
 def run(model_name, total_timesteps=10000, load_path=None, eval=False):
-    env = DummyVecEnv(
-        [lambda: gym.make('QuadTakeOffHoverEnv-v0', is_evaluate=eval)])
+    env = DummyVecEnv([lambda: gym.make('QuadTakeOffHoverEnv-v0')])
 
     model_class = {'sac': SAC, 'ppo': PPO2}[model_name]
     if load_path:
@@ -89,6 +45,8 @@ if __name__ == "__main__":
         "--adv_load_path", help="Path to load trained model", type=str, default=None)
     parser.add_argument(
         "--adv_model_name", help="RL model to use for adversary", type=str, default=None)
+    parser.add_argument(
+        "--adv_bound", help="Maximum adversarial force to apply", type=float, default=None)
     args = parser.parse_args()
     args = vars(args)
 

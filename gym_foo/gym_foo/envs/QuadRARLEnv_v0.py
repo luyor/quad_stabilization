@@ -50,7 +50,7 @@ class QuadRARLEnv_v0(QuadTakeOffHoverEnv_v0):
         wrench.force.y = self.adversarial_bound * action[1]
         wrench.force.z = self.adversarial_bound * action[2]
         self.clear_body_wrenches(body_name)
-        self.apply_body_wrench(body_name, body_name, None, wrench, rospy.Time.from_sec(
+        self.apply_body_wrench(body_name, "", None, wrench, rospy.Time.from_sec(
             0), rospy.Duration.from_sec(10000.0))
 
     def step(self, action):
