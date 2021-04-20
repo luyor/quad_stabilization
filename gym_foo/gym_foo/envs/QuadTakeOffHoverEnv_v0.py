@@ -169,7 +169,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
 
         return np.array([z, vx, vy, vz, roll, pitch, yaw, roll_w, pitch_w, yaw_w])
 
-    def compute_reward(self, state, prev_position):
+    def compute_cost(self, state, prev_position):
         target = np.array([self.target_height, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         diff = state - target
         pos = np.array([self.x, self.y, state[0]])
@@ -185,7 +185,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         #     print(pandas.DataFrame([costs], ['cost'], headers))
         #     print('total cost:', sum(costs))
 
-        return 10-sum(costs)
+        return sum(costs)
 
     def do_quadrotor_action(self, action):
         # action is 4-dims representing drone's four motor speeds
@@ -254,7 +254,8 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
         suc = False
         self.step_counter += 1
 
-        reward = self.compute_reward(obsrv, prev_position)
+        cost = self.compute_cost(obsrv, prev_position)
+        reward = 10-cost
 
         if self.in_collision(self.pre_obsrv):
             done = True

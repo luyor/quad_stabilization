@@ -14,58 +14,20 @@ from stable_baselines.sac.policies import SACPolicy
 from stable_baselines import logger
 
 
-class ADVERSARIAL_SAC(SAC):
+class AdversarialSAC(SAC):
     """
     Soft Actor-Critic (SAC) with RARL Framework
-    Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor,
-    This implementation borrows code from original implementation (https://github.com/haarnoja/sac)
-    from OpenAI Spinning Up (https://github.com/openai/spinningup) and from the Softlearning repo
-    (https://github.com/rail-berkeley/softlearning/)
-    Paper: https://arxiv.org/abs/1801.01290
-    Introduction to SAC: https://spinningup.openai.com/en/latest/algorithms/sac.html
-
-    :param policy: (SACPolicy or str) The policy model to use (MlpPolicy, CnnPolicy, LnMlpPolicy, ...)
-    :param env: (Gym environment or str) The environment to learn from (if registered in Gym, can be str)
-    :param gamma: (float) the discount factor
-    :param learning_rate: (float or callable) learning rate for adam optimizer,
-        the same learning rate will be used for all networks (Q-Values, Actor and Value function)
-        it can be a function of the current progress (from 1 to 0)
-    :param buffer_size: (int) size of the replay buffer
-    :param batch_size: (int) Minibatch size for each gradient update
-    :param tau: (float) the soft update coefficient ("polyak update", between 0 and 1)
-    :param ent_coef: (str or float) Entropy regularization coefficient. (Equivalent to
-        inverse of reward scale in the original SAC paper.)  Controlling exploration/exploitation trade-off.
-        Set it to 'auto' to learn it automatically (and 'auto_0.1' for using 0.1 as initial value)
-    :param train_freq: (int) Update the model every `train_freq` steps.
-    :param learning_starts: (int) how many steps of the model to collect transitions for before learning starts
-    :param target_update_interval: (int) update the target network every `target_network_update_freq` steps.
-    :param gradient_steps: (int) How many gradient update after each step
-    :param target_entropy: (str or float) target entropy when learning ent_coef (ent_coef = 'auto')
-    :param action_noise: (ActionNoise) the action noise type (None by default), this can help
-        for hard exploration problem. Cf DDPG for the different action noise type.
-    :param random_exploration: (float) Probability of taking a random action (as in an epsilon-greedy strategy)
-        This is not needed for SAC normally but can help exploring when using HER + SAC.
-        This hack was present in the original OpenAI Baselines repo (DDPG + HER)
-    :param verbose: (int) the verbosity level: 0 none, 1 training information, 2 tensorflow debug
-    :param tensorboard_log: (str) the log location for tensorboard (if None, no logging)
-    :param _init_setup_model: (bool) Whether or not to build the network at the creation of the instance
-    :param policy_kwargs: (dict) additional arguments to be passed to the policy on creation
-    :param full_tensorboard_log: (bool) enable additional logging when using tensorboard
-        Note: this has no effect on SAC logging for now
-    :param seed: (int) Seed for the pseudo-random generators (python, numpy, tensorflow).
-        If None (default), use random seed. Note that if you want completely deterministic
-        results, you must set `n_cpu_tf_sess` to 1.
-    :param n_cpu_tf_sess: (int) The number of threads for TensorFlow operations
-        If None, the number of cpu of the current machine will be used.
     """
 
     def __init__(self, policy, env, **kwargs):
-        super(SAC, self).__init__(policy=policy, env=env, **kwargs)
-        self.observation_space = env.adv_observation_space
+        super(AdversarialSAC, self).__init__(policy=policy,
+                                             env=env, _init_setup_model=False, **kwargs)
         self.action_space = env.adv_action_space
+        self.observation_space = env.adv_observation_space
+        self.setup_model()
 
     def learn(self, total_timesteps, callback=None,
-              log_interval=4, tb_log_name="SAC_RARL", reset_num_timesteps=True, replay_wrapper=None):
+              log_interval=4, tb_log_name="ADV_SAC", reset_num_timesteps=True, replay_wrapper=None):
 
         new_tb_log = self._init_num_timesteps(reset_num_timesteps)
         callback = self._init_callback(callback)
@@ -88,7 +50,7 @@ class ADVERSARIAL_SAC(SAC):
             episode_successes = []
             if self.action_noise is not None:
                 self.action_noise.reset()
-            obs = self.env.reset()
+            obs = self.env.reset_adv_obs
             # Retrieve unnormalized observation for saving into the buffer
             if self._vec_normalize_env is not None:
                 obs_ = self._vec_normalize_env.get_original_obs().squeeze()
@@ -107,8 +69,9 @@ class ADVERSARIAL_SAC(SAC):
                 if self.num_timesteps < self.learning_starts or np.random.rand() < self.random_exploration:
                     # actions sampled from action space are from range specific to the environment
                     # but algorithm operates on tanh-squashed actions therefore simple scaling is used
-                    unscaled_action = self.env.action_space.sample()
-                    action = scale_action(self.action_space, unscaled_action)
+                    unscaled_action = self.env.adv_action_space.sample()
+                    action = scale_action(
+                        self.action_space, unscaled_action)
                 else:
                     action = self.policy_tf.step(
                         obs[None], deterministic=False).flatten()
@@ -119,9 +82,15 @@ class ADVERSARIAL_SAC(SAC):
                     # inferred actions need to be transformed to environment action_space before stepping
                     unscaled_action = unscale_action(self.action_space, action)
 
-                assert action.shape == self.env.action_space.shape
+                assert action.shape == self.env.adv_action_space.shape
 
-                new_obs, reward, done, info = self.env.step(unscaled_action)
+                # NOTE: yield and let the protagonist call env.step
+                self.env.adv_action = unscaled_action
+                yield None
+
+                _, _, done, info = self.env.last_step
+                new_obs = info['adv_obs']
+                reward = info['adv_reward']
 
                 self.num_timesteps += 1
 
@@ -185,8 +154,6 @@ class ADVERSARIAL_SAC(SAC):
                     if len(mb_infos_vals) > 0:
                         infos_values = np.mean(mb_infos_vals, axis=0)
 
-                    self.update_adversarial_network()
-
                     callback.on_rollout_start()
 
                 episode_rewards[-1] += reward_
@@ -212,6 +179,7 @@ class ADVERSARIAL_SAC(SAC):
                 # Display training infos
                 if self.verbose >= 1 and done and log_interval is not None and num_episodes % log_interval == 0:
                     fps = int(step / (time.time() - start_time))
+                    logger.logkv("adversarial", True)
                     logger.logkv("episodes", num_episodes)
                     logger.logkv("mean 100 episode reward", mean_reward)
                     if len(self.ep_info_buf) > 0 and len(self.ep_info_buf[0]) > 0:

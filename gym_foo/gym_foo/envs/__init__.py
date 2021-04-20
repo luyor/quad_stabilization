@@ -1,2 +1,2 @@
 from gym_foo.gym_foo.envs.QuadTakeOffHoverEnv_v0 import QuadTakeOffHoverEnv_v0
-
+from gym_foo.gym_foo.envs.QuadRARLEnv_v0 import QuadRARLEnv_v0

@@ -8,7 +8,13 @@ logger = logging.getLogger(__name__)
 # Quadrotor Hovering from Ground
 
 register(
-        # For gym id, the correct form would be xxx-v0, not xxx_v0
-        id='QuadTakeOffHoverEnv-v0',
-        entry_point='gym_foo.gym_foo.envs:QuadTakeOffHoverEnv_v0',
+    # For gym id, the correct form would be xxx-v0, not xxx_v0
+    id='QuadTakeOffHoverEnv-v0',
+    entry_point='gym_foo.gym_foo.envs:QuadTakeOffHoverEnv_v0',
+)
+
+
+register(
+    id='QuadRARLEnv-v0',
+    entry_point='gym_foo.gym_foo.envs:QuadRARLEnv_v0',
 )
