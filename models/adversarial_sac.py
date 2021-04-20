@@ -205,20 +205,3 @@ class AdversarialSAC(SAC):
                     infos_values = []
             callback.on_training_end()
             return self
-
-    def predict(self, observation, state=None, mask=None, deterministic=True):
-        observation = np.array(observation)
-        vectorized_env = self._is_vectorized_observation(
-            observation, self.observation_space)
-
-        observation = observation.reshape((-1,) + self.observation_space.shape)
-        actions = self.policy_tf.step(observation, deterministic=deterministic)
-        # reshape to the correct action shape
-        actions = actions.reshape((-1,) + self.action_space.shape)
-        # scale the output for the prediction
-        actions = unscale_action(self.action_space, actions)
-
-        if not vectorized_env:
-            actions = actions[0]
-
-        return actions, None

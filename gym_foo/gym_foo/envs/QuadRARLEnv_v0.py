@@ -36,6 +36,10 @@ class QuadRARLEnv_v0(QuadTakeOffHoverEnv_v0):
             '/gazebo/clear_body_wrenches', BodyRequest)
 
         self.adversarial_bound = adversarial_bound
+        self.adv_predict_func = None
+
+    def set_adv_predict_func(self, adv_predict_func):
+        self.adv_predict_func = adv_predict_func
 
     def reset(self, **kwargs):
         obsrv = super(QuadRARLEnv_v0, self).reset(**kwargs)
@@ -57,7 +61,11 @@ class QuadRARLEnv_v0(QuadTakeOffHoverEnv_v0):
         prev_position = np.array([self.x, self.y, self.pre_obsrv[0]])
 
         self.do_quadrotor_action(action)
+
+        if self.adv_predict_func:
+            self.adv_action = self.adv_predict_func(self.pre_obsrv)
         self.do_adversarial_action(self.adv_action)
+
         obsrv = self.run_simulation()
 
         done = False

@@ -47,11 +47,13 @@ if __name__ == "__main__":
         "--adv_model_name", help="RL model to use for adversary", type=str, default=None)
     parser.add_argument(
         "--adv_bound", help="Maximum adversarial force to apply", type=float, default=None)
+    parser.add_argument(
+        "--adv_rand", help="Use random adversarial force", action='store_true', default=False)
     args = parser.parse_args()
     args = vars(args)
 
     print("arguments: ", json.dumps(args, indent=4))
-    if args['adv_model_name'] is not None:
+    if args['adv_model_name'] or args['adv_rand']:
         run_rarl(**args)
     else:
         run(**args)

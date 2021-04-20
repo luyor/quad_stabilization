@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 
+import numpy as np
 import gym
 from models.adversarial_sac import AdversarialSAC
 from stable_baselines import PPO2, SAC
@@ -40,7 +41,8 @@ class RARLCallback(BaseCallback):
             self.adv_model.save(adv_path)
 
 
-def run_rarl(model_name, adv_model_name, total_timesteps=30000, load_path=None, adv_load_path=None, eval=False, adv_bound=0.1):
+def run_rarl(model_name, adv_model_name=None, total_timesteps=30000, load_path=None,
+             adv_load_path=None, eval=False, adv_bound=0.1, adv_rand=False):
     env = gym.make('QuadRARLEnv-v0', adversarial_bound=adv_bound)
 
     model_class = {'sac': SAC, 'ppo': PPO2}[model_name]
@@ -60,7 +62,12 @@ def run_rarl(model_name, adv_model_name, total_timesteps=30000, load_path=None, 
                                     tensorboard_log='./tensorboard')
 
     if eval:
-        evaluate_policy(model, env)
+        if adv_rand:
+            env.set_adv_predict_func(lambda x: np.random.rand(3)*2-1)
+        else:
+            env.set_adv_predict_func(lambda x: adv_model.predict(x)[0])
+
+        evaluate_policy(pro_model, env)
     else:
         rarl_callback = RARLCallback(
             pro_model, adv_model, total_timesteps, save_freq=1000)
