@@ -19,12 +19,14 @@ class AdversarialSAC(SAC):
     Soft Actor-Critic (SAC) with RARL Framework
     """
 
-    def __init__(self, policy, env, **kwargs):
-        super(AdversarialSAC, self).__init__(policy=policy,
-                                             env=env, _init_setup_model=False, **kwargs)
-        self.action_space = env.adv_action_space
-        self.observation_space = env.adv_observation_space
-        self.setup_model()
+    def setup_model(self):
+        self.action_space = self.env.adv_action_space
+        self.observation_space = self.env.adv_observation_space
+        super(AdversarialSAC, self).setup_model()
+
+    # don't check for validity of env
+    def set_env(self,env):
+        self.env = env
 
     def learn(self, total_timesteps, callback=None,
               log_interval=4, tb_log_name="ADV_SAC", reset_num_timesteps=True, replay_wrapper=None):
