@@ -30,7 +30,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
     def __init__(self, **kwargs):
         # Launch the simulation with the given launchfile name
         gazebo_env.GazeboEnv.__init__(
-            self, "crazyflie2_without_controller.launch")
+            self, "crazyflie2_without_controller.launch", **kwargs)
 
         # --- Max episode steps ---
         self.max_steps = 50
@@ -67,7 +67,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
             pose = Pose()
             pose.position.x = 0
             pose.position.y = 0
-            pose.position.z = np.random.uniform(0.9, 1.1)
+            pose.position.z = 1
 
             # initialize pose orientation
             # Note: gazebo rotation order: roll, pitch, yaw
@@ -78,9 +78,7 @@ class QuadTakeOffHoverEnv_v0(gazebo_env.GazeboEnv):
             # roll = np.random.uniform(-np.pi/2, np.pi/2)
             # pitch = np.random.uniform(-np.pi/2, np.pi/2)
             # yaw = np.random.uniform(0, 2*np.pi)
-            roll = np.random.uniform(-np.pi/2, np.pi/2)
-            pitch = np.random.uniform(-np.pi/2, np.pi/2)
-            yaw = np.random.uniform(-np.pi/2, np.pi/2)
+            roll, pitch, yaw = np.random.uniform(-np.pi*0.8, np.pi*0.8, 3)
             pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = quaternion_from_euler(
                 roll, pitch, yaw)
 
