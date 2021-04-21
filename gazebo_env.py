@@ -17,7 +17,8 @@ class GazeboEnv(gym.Env):
     """
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, launchfile):
+    def __init__(self, launchfile, launch_gazebo=True):
+        self.launch_gazebo = launch_gazebo
         # self.last_clock_msg = Clock()
 
         random_number = random.randint(10000, 15000)
@@ -54,9 +55,10 @@ class GazeboEnv(gym.Env):
         if not os.path.exists(fullpath):
             raise IOError("File "+fullpath+" does not exist")
 
-        self._roslaunch = subprocess.Popen([sys.executable, os.path.join(
-            ros_path, b"roslaunch"), "-p", self.port, fullpath], stdout=subprocess.DEVNULL)
-        print("Gazebo launched!")
+        if self.launch_gazebo:
+            self._roslaunch = subprocess.Popen([sys.executable, os.path.join(
+                ros_path, b"roslaunch"), "-p", self.port, fullpath], stdout=subprocess.DEVNULL)
+            print("Gazebo launched!")
 
         # time.sleep(10)
         self.gzclient_pid = 0

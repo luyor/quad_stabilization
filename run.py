@@ -13,7 +13,7 @@ from gym_foo import gym_foo
 from run_rarl import run_rarl
 
 
-def run(model_name, total_timesteps=10000, load_path=None, eval=False):
+def run(model_name, total_timesteps=40000, load_path=None, eval=False):
     env = DummyVecEnv([lambda: gym.make('QuadTakeOffHoverEnv-v0')])
 
     model_class = {'sac': SAC, 'ppo': PPO2}[model_name]
@@ -35,6 +35,8 @@ def run(model_name, total_timesteps=10000, load_path=None, eval=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--total_timesteps", help="Total timesteps to train", type=int, default=40000)
     parser.add_argument(
         "--load_path", help="Path to load trained model", type=str, default=None)
     parser.add_argument(

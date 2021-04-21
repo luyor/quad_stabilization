@@ -25,7 +25,7 @@ class AdversarialSAC(SAC):
         super(AdversarialSAC, self).setup_model()
 
     # don't check for validity of env
-    def set_env(self,env):
+    def set_env(self, env):
         self.env = env
 
     def learn(self, total_timesteps, callback=None,
