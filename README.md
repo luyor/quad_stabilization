@@ -11,4 +11,6 @@ This branch is called "dev_from_202004", which means it is a new start from Apri
 4. `python run.py --model_name sac` to start training. model_name can be `sac` or `ppo`.
 5. `python run.py --model_name sac --load_path logs/best_model` to continue training.
 6. `python run.py --model_name sac --load_path logs/best_model --eval` to evaluate model.
-7. `python run.py --model_name sac --load_path quad_model_sac --adv_model_name sac --adv_load_path adversary_model_sac --adv_bound 0.3` to continue training with rarl. adv_bound is the maximum of disturbance.
+7. `python run.py --model_name sac --load_path quad_model_sac --adv_model_name sac --adv_load_path adversary_model_sac --adv_bound 0.1` to continue training with rarl. adv_bound is the maximum of disturbance.
+8. `python run.py --model_name sac --load_path protagonist_model_sac.zip --adv_model_name sac --adv_load_path adversary_model_sac --adv_bound 0.1 --eval --adv_rand` to evaluate model on a random adversary.
+
